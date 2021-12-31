@@ -1,0 +1,172 @@
+---
+title: "NBA_Project"
+author: "STAT 419"
+date: "12/02/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(mvtnorm)
+library(ggplot2)
+library(GGally)
+library(tidyverse)
+```
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r normaility test}
+basketball = read.csv("all_seasons.csv")
+
+
+head(NBA)
+
+# The code below tests for normality for all the numerical columns 
+n = NBA[c(4:6,10:20)]
+ggpairs(n)
+
+
+```
+
+```{r manova}
+#The code below creates new column in the NBA dataset. This column will group players based on the year they were drafted. 
+NBA$Group <- 0
+NBA$Group[NBA$draft_year<2001] <- 1
+NBA$Group[NBA$draft_year>2001 & NBA$draft_year<2006] <- 2
+NBA$Group[NBA$draft_year>2006 & NBA$draft_year<2011] <- 3
+NBA$Group[NBA$draft_year>2011 & NBA$draft_year<2019] <- 4
+
+manova_test = manova(cbind(NBA$age, NBA$player_height)~Group,data=NBA)
+summary(manova_test,test="Wilks")
+# We wanted to see if players height and 
+# We reject the null hypothesis because the p-value is really small.
+
+
+#The code below splits the original data into 4 different data frame so that we can do some calculation based on years players where drafted. 
+
+first_df <- NBA[NBA$draft_year < 2001,]
+summary(first_df)
+
+second_df <- NBA[NBA$draft_year>2001 & NBA$draft_year<2006,]
+summary(second_df)
+
+third_df <- NBA[NBA$draft_year>2006 & NBA$draft_year<2011,]
+summary(third_df)
+
+fourth_df <- NBA[NBA$draft_year>2011,]
+summary(fourth_df)
+
+```
+```{r norm. season}
+#Drop all undrafted players and convert to int
+basketball = read.csv("all_seasons.csv")
+NBA = subset(basketball, draft_number!="Undrafted")
+NBA$draft_number = as.numeric(NBA$draft_number)
+NBA$draft_round = as.numeric(NBA$draft_round)
+NBA$draft_year = as.numeric(NBA$draft_year)
+
+#convert season column to int
+a = substr(NBA$season,1,4)
+b = strtoi(a, base=0L)
+
+c = substr(basketball$season,1,4)
+d = strtoi(c, base=0L)
+
+NBA = NBA[-c(22)]
+basketball = basketball[-c(22)]
+NBA$season <- b
+basketball$season <- d
+head(basketball)
+
+```
+
+```{r PCA}
+PCA_NBA = NBA[c(4:6, 9:22)]
+PCA_undrafted = basketball[c(4:6, 12:22)]
+
+nbaPCA <- prcomp(PCA_NBA,center=TRUE,scale=TRUE)
+undraftedPCA <- prcomp(PCA_undrafted,center=TRUE,scale=TRUE)
+summary(nbaPCA)
+summary(undraftedPCA)
+
+
+heatmap(nbaPCA$rotation,Rowv = NA, Colv = NA, main="Drafted Players Only")
+heatmap(undraftedPCA$rotation,Rowv = NA, Colv = NA, main="All Players")
+round(nbaPCA$rotation,2)
+round(undraftedPCA$rotation,2)
+sum(nbaPCA$rotation[,1]**2)
+sum(undraftedPCA$rotation[,1]**2)
+
+
+nba_elbow <- cumsum(nbaPCA$sdev^2/sum(nbaPCA$sdev^2))
+undrafted_elbow <- cumsum(undraftedPCA$sdev^2/sum(undraftedPCA$sdev^2))
+plot(nba_elbow, main="Drafted Players Only")
+plot(undrafted_elbow, main="All Players")
+
+```
+
+```{r draft_rounds}
+# Here, we created 3 different data-sets from the original data. We organized the three new datas based on rounds and one for the Undrafted players. 
+R_1 <- NBA[NBA$draft_round == 1,]
+summary(R_1)
+R_2 <- NBA[NBA$draft_round == 2,]
+summary(R_2)
+Un_ply <- UN_NBA[UN_NBA$draft_round == "Undrafted",]
+summary(Un_ply)
+```
+
+```{r cluster}
+summary(basketball)
+nbaNum <- basketball[,c(4:6,12:21)]
+cor(nbaNum)
+nbaK2 <- kmeans(nbaNum, 2)
+nbaK3 <- kmeans(nbaNum, 3)
+nbaK5 <- kmeans(nbaNum, 5)
+nbaNum$cluster2 <- nbaK2$cluster
+nbaNum$cluster3 <- nbaK3$cluster
+nbaNum$cluster5 <- nbaK5$cluster
+ 
+ggplot(nbaNum,aes(x=ast, y =pts, color=as.factor(cluster5))) + geom_point()
+ggplot(nbaNum, aes(x=player_height, y = ast, color=as.factor(cluster5))) + geom_point()
+
+```
+```{r draft}
+nba_ds = subset(basketball, draft_number!="Undrafted")
+nba_ds$draft_number = as.numeric(nba_ds$draft_number)
+nba_ud = subset(basketball, draft_number == "Undrafted")
+nba_ds$gp = as.numeric(nba_ds$gp)
+head(nba_ds)
+head(nba_ud)
+nba_dsK3 <- kmeans(nba_ds[,c(4:6,9:21)], 3)
+nba_dsK2 <- kmeans(nba_ds[,c(4:6,9:21)], 2)
+nba_dsK5 <- kmeans(nba_ds[,c(4:6,9:21)], 5)
+nba_ds$cluster3 <- nba_dsK3$cluster
+nba_ds$cluster2 <- nba_dsK2$cluster
+nba_ds$cluster5 <- nba_dsK5$cluster
+ 
+ggplot(nba_ds, aes(x=draft_number, y = pts, color=as.factor(cluster5))) + geom_point()
+ggplot(nba_ds, aes(x=draft_number, y = ast, color=as.factor(cluster5))) + geom_point()
+ggplot(nba_ds, aes(x= draft_round, y = pts, color = as.factor(cluster2))) + geom_point()
+ggplot(nba_ds, aes(x= draft_round, y = ts_pct, color = as.factor(cluster2))) + geom_point()
+ggplot(nba_ds, aes(y = ast, x = player_height, color = as.factor(cluster5))) + geom_point()
+ggplot(nba_ds, aes(y = ast_pct , x = player_height, color = as.factor(cluster5))) + geom_point()
+ggplot(nba_ds, aes(y = ast_pct , x = pts, color = as.factor(cluster5))) + geom_point()
+ 
+```
+```{r undrafted}
+nba_udK3 <- kmeans(nba_ud[,c(4:6,13:21)], 3)
+nba_udK2 <- kmeans(nba_ud[,c(4:6,13:21)], 2)
+nba_udK5 <- kmeans(nba_ud[,c(4:6,13:21)], 5)
+nba_ud$cluster3 <- nba_udK3$cluster
+nba_ud$cluster2 <- nba_udK2$cluster
+nba_ud$cluster5 <- nba_udK5$cluster
+ 
+ 
+ggplot(nba_ud, aes(y = ast, x = player_height, color = as.factor(cluster5))) + geom_point()
+ggplot(nba_ud, aes(y = ast_pct , x = player_height, color = as.factor(cluster5))) + geom_point()
+ggplot(nba_ud, aes(y = ast_pct , x = pts, color = as.factor(cluster5))) + geom_point()
+ 
+```
